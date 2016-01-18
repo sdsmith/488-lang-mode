@@ -1,0 +1,50 @@
+% 488 Source Language Example 1
+
+{
+        var a : integer
+        var b : integer
+        var c : boolean
+        var d : boolean
+        
+
+        function foo (n1 : integer, n2 : integer) : integer
+                {
+                        var sum : integer
+                        sum := n1 + n2
+                        return with sum
+                }
+
+
+                procedure main
+                        {
+                                % Setup
+                                a := 1
+                                b := 2
+                                c := true
+                                d := false
+
+                                if not (b <= a) or (c and d) then % inline comment
+                                        a := foo(2, b)
+                                        else
+                                                a := foo(a, b)
+
+                                                while b < a do
+                                                        a := b + 1
+
+                                                        repeat b := b + 1 until
+                                                                b = 10
+                                                                exit when a >= 100
+
+                                                                while true do
+                                                                        exit
+
+                                                                        write "sample text"
+                                                                        write newline
+                                                                        read a
+
+                                                                        return
+                                                                }
+
+                                                                main
+                                                        }
+                                                        
