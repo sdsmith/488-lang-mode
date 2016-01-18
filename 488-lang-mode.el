@@ -1,6 +1,7 @@
 ;;;; 488-lang-mode.el -- major mode for the 488 Source Language
 ;; January 17, 2016
 ;;
+;; Followed a combination of the following two guides
 ;; http://renormalist.net/Renormalist/EmacsLanguageModeCreationTutorial
 ;; http://ergoemacs.org/emacs/elisp_syntax_coloring.html
 
