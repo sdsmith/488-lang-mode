@@ -9,7 +9,8 @@
 
 
 ;;; HOOK
-;; Define module hook
+;; Define module hook2
+
 (defvar 488-lang-mode-hook nil)
 
 
@@ -29,7 +30,7 @@
 
 ;; Create list for font-lock
 (setq 488-lang-font-lock-keywords
-      '(
+      `(
         (,488-lang-keywords-regexp . font-lock-keyword-face)
         (,488-lang-types-regexp . font-lock-type-face)
         (,488-lang-constants-regexp . font-lock-constant-face)
@@ -77,29 +78,40 @@
   (if (bobp) ; Rule 1
       (indent-line-to 0)
     (let ((not-indented t) cur-indent)
-      (if (looking-at "^[ \t]*}") ; Rule 2
-          (progn
-            (save-excursion
-              (forward-line -1)
-              (setq cur-indent (- (current-indentation) default-tab-width)))
-            (if (< cur-indent 0) ; Sanity check - make sure indent >= 0
-                (setq cur-indent 0)))
-        ;; Iterate backward through code to find indentation 'hint'
-        (save-excursion
-          (while not-indented
-            (forward-line -1)
-            (if (looking-at "^[ \t]*}") ; Rule 3
-                (progn
-                  (setq cur-indent (current-indentation))
-                  (setq not-indented nil))
-              ;; New scope keywords
-              ;; (regexp-opt '("IF" "WHILE" "REPEAT" "FUNCTION" "PROCEDURE" "{") t)
-              (if (looking-at "^[ \t]*\\(FUNCTION\\|IF\\|ELSE\\|PROCEDURE\\|REPEAT\\|WHILE\\|{\\)") ; Rule 4
-                  (progn
-                    (setq cur-indent (+ (current-indentation) default-tab-width))
-                    (setq not-indented nil))
-                (if (bobp) ; Rule 5
-                    (setq not-indented nil)))))))
+      (cond ((looking-at "^[ \t]*ELSE") ; Rule 2
+              (progn
+                (save-excursion
+                  (forward-line -1)
+                  (setq cur-indent (- (current-indentation) default-tab-width)))
+                (if (< cur-indent 0) ; Sanity check - make sure indent >= 0
+                    (setq cur-indent 0))))
+            ((looking-at "^[ \t]*}")
+             ;; Find the top of the scope, and indent it at that level
+             (save-excursion
+               (let ((not-top-scope-found t))
+                 (while not-top-scope-found
+                   (forward-line -1)
+                   (if (looking-at "^[ \t]*{")
+                       (progn
+                         (setq cur-ident (current-indentation))
+                         (setq not-top-scope-found nil)))))))
+            ;; Iterate backward through code to find indentation 'hint'
+            (t
+             (save-excursion
+               (while not-indented
+                 (forward-line -1)
+                 (if (looking-at "^[ \t]*}") ; Rule 3
+                     (progn
+                       (setq cur-indent (current-indentation))
+                       (setq not-indented nil))
+                   ;; New scope keywords
+                   ;; (regexp-opt '("IF" "WHILE" "REPEAT" "FUNCTION" "PROCEDURE" "{") t)
+                   (if (looking-at "^[ \t]*\\(IF\\|ELSE\\|REPEAT\\|WHILE\\|{\\)") ; Rule 4
+                       (progn
+                         (setq cur-indent (+ (current-indentation) default-tab-width))
+                         (setq not-indented nil))
+                     (if (bobp) ; Rule 5
+                         (setq not-indented nil))))))))
       (if cur-indent
           (indent-line-to cur-indent)
         (indent-line-to 0))))) ; If we didn't see indentation hint, allow not indentation
@@ -135,21 +147,26 @@
 
 
 
-;;; ENTRY FUNCTION
-;; Function to be called by emacs when mode is started
-(defun 488-lang-mode ()
-  "Major mode for CSC488 Source Language"
-  (interactive)
-  (kill-all-local-variables)
-  (set-syntax-table 488-lang-mode-syntax-table) ; Set syntax table
-  (use-local-map 488-lang-mode-map) ; Set key map
-  (set (make-local-variable 'font-lock-defaults) '(488-lang-font-lock-keywords)) ; Set font lock
-  (set (make-local-variable 'indent-line-function) '488-lang-indent-line) ; Set indent function
-  (setq major-mode '488-lang-mode) ; Set major mode
-  (setq mode-name "488 Lang") ; Set name to appear in buffer
-  (run-hooks '488-lang-mode-hook))
+;; ;;; ENTRY FUNCTION
+;; ;; Function to be called by emacs when mode is started
+;; (defun 488-lang-mode ()
+;;   "Major mode for CSC488 Source Language"
+;;   (interactive)
+;;   (kill-all-local-variables)
+;;   (set-syntax-table 488-lang-mode-syntax-table) ; Set syntax table
+;;   (use-local-map 488-lang-mode-map) ; Set key map
+;;   (set (make-local-variable 'font-lock-defaults) '(488-lang-font-lock-keywords)) ; Set font lock
+;;   ;(setq font-lock-defaults '((488-lang-font-lock-keywords)))
+;;   (set (make-local-variable 'indent-line-function) '488-lang-indent-line) ; Set indent function
+;;   (setq major-mode '488-lang-mode) ; Set major mode
+;;   (setq mode-name "488 Lang") ; Set name to appear in buffer
+;;   (run-hooks '488-lang-mode-hook))
     
-    
+(define-derived-mode 488-lang-mode fundamental-mode
+  "488 Lang mode"
+  "Major mode for CSC488 Source Language (2016)"
+  (setq font-lock-defaults '((488-lang-font-lock-keywords))))
+
 
 ;;; EXPOSE MODULE
 ;; Add mode to 'features' list (ie. exposing it to the emacs environment)
