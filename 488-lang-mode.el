@@ -84,12 +84,21 @@
           ;; Give next option, return
           (progn
             (setq 488-lang--cur-multi-indent (+ 488-lang--cur-multi-indent default-tab-width))
-            (if (< 488-lang--cur-multi-indent 488-lang--min-line-indent)
-                (setq 488-lang--cur-multi-indent 488-lang--max-line-indent))
+
+            ;; Check for wrap around
+            (if (> 488-lang--cur-multi-indent 488-lang--max-line-indent)                
+                (setq 488-lang--cur-multi-indent 488-lang--min-line-indent))
+
+            ;; Indent line
+            (indent-line-to 488-lang--cur-multi-indent)
+
+            ;; Return success
             t)
         
         ;; No longer on same multi-indent line
         (setq 488-lang--on-multi-indent-line nil))
+
+    ;; Return
     nil))
 
 
@@ -159,8 +168,8 @@
               (progn
                 ;; Find min indentation level (first sign of open scope '{' once all '}' have bee closed
                 (save-excursion
-                  (let ((open-brackets 0))
-                    (while (not 488-lang--min-line-indent)
+                  (let ((open-brackets 0) (not-min-found t))
+                    (while not-min-found
                       (forward-line -1)
                       (cond
                        ((looking-at "^[ \t]*}") ; Newly opened scope
@@ -169,17 +178,46 @@
                        ((looking-at "^[ \t]*{")
                         (if (> open-brackets 0)
                             (setq open-brackets (- open-brackets 1))
-                          (setq 488-lang--min-line-indent (current-indentation)))))))) ; no open brackets, use scope
+                          (progn                           
+                            (setq 488-lang--min-line-indent (+ (current-indentation) default-tab-width))
+                            (setq not-min-found nil)))))))) ; no open brackets, use scope
                 
                 ;; Find max indentation level (previous indentation level)
                 (save-excursion
-                  (forward-line -1)
-                  (setq max-line-indent (current-indentation)))
+                  (let ((not-text-found t))
+                    (while not-text-found
+                      (forward-line -1)
+                      (cond
+                       ;; Find a line that is not only whitespace
+                       ((looking-at "^[ \t]*[^ \t\n]")
+                        (progn
+                          (setq 488-lang--max-line-indent (current-indentation))
+                          (setq not-text-found nil)))
+
+                       ;; Catch beginning of buffer
+                       ((bobp)
+                        (progn
+                          (setq 488-lang--max-line-indent 0)
+                          (setq not-text-found nil)))))))
                 
                 ;; Set the last line as a multi-indent line
-                (setq 488-lang--cur-multi-indent (current-indentation))
+                (cond
+                 ;; Check upper bound
+                 ((> (current-indentation) 488-lang--max-line-indent)
+                  (setq 488-lang--cur-multi-indent 488-lang--max-line-indent))
+
+                 ;; Check lower bound
+                 ((< (current-indentation) 488-lang--min-line-indent)
+                  (setq 488-lang--cur-multi-indent 488-lang--min-line-indent))
+
+                 ;; In bounds, keep it the same
+                 (t
+                  (setq 488-lang--cur-multi-indent (current-indentation))))
+
+                ;; Apply indentation
+                (setq cur-indent 488-lang--cur-multi-indent)
                 
-                ;; Set flag showing we are doing multi indenting
+                ;; Set flag showing we are doing multi option indenting
                 (setq 488-lang--on-multi-indent-line t)))
              
              ;; Iterate backward through code to find indentation 'hint'
@@ -203,11 +241,7 @@
                    
                    ;; No hints if beginning of buffer
                    ((bobp) ; Rule 5
-                    (setq not-indented nil))
-                   
-                   ;; Otherwise, give indentation options based on context
-                   ;; NOTE(sdsmith): max - prev indentation; min - indent level of inner most scope (ie. '{...}')
-                   )))))
+                    (setq not-indented nil)))))))
 
             ;; Clean-up
             (progn
