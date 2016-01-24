@@ -9,8 +9,7 @@
 
 
 ;;; HOOK
-;; Define module hook2
-
+;; Define module hook
 (defvar 488-lang-mode-hook nil)
 
 
@@ -75,6 +74,7 @@
 	  (widen)
           (+ n (line-number-at-pos start) -1))))))
 
+
 (defun 488-lang-multi-indent ()
   "Cycles multipule indentation levels if we are on a multi-indent line. Return t if indented, nil o/w."
   ;; Check if we are cycling tab options on a multi-indent line
@@ -96,19 +96,47 @@
             t)
         
         ;; No longer on same multi-indent line
-        (setq 488-lang--on-multi-indent-line nil))
-
+        (progn
+          (setq 488-lang--on-multi-indent-line nil)))
+    
     ;; Return
     nil))
 
 
 
-;; TODO(sdsmith): make these globals (or more cleanly, buffer locals)
+
 (setq 488-lang--min-line-indent nil)
 (setq 488-lang--max-line-indent nil)
 (setq 488-lang--on-multi-indent-line nil) ; bool - true if last-line has multiple indent possibiliies
 (setq 488-lang--cur-multi-indent nil) ; value of the current displayed option for multi indentation
 (setq 488-lang--last-line-number nil) ; line number of the last line processed
+
+
+(defun get-containing-scope-indentation ()
+  "Return the indentation level of the containing scope marker ('{') for the current line."
+  (let ((scope-indentation nil))
+    (save-excursion
+      (let ((not-top-scope-found t) (open-brackets 0))
+        (while not-top-scope-found
+          (forward-line -1)
+          (cond
+           ((looking-at "^[ \t]*}") ; Newly opened scope
+            (setq open-brackets (+ open-brackets 1)))           
+           ((looking-at "^[ \t]*{")
+            (if (> open-brackets 0)
+                (setq open-brackets (- open-brackets 1))
+              ;; No open brackets, use scope
+              (progn
+                (setq scope-indentation (current-indentation))
+                (setq not-top-scope-found nil))))           
+           ((bobp)
+            (progn
+              (setq scope-indentation 0)
+              (setq not-top-scope-found nil)))))))
+    scope-indentation))
+
+
+
 ;;; INDENTATION
 ;; Rules:
 ;; 1 - if beginning of buffer, indent 0
@@ -118,6 +146,8 @@
 ;; 5 - if above rules do no apply, do not indent
 ;; NOTE(sdsmith): additional rule - need to de indent when ending scope for if, or loops, when no '}'
 (defun 488-lang-indent-line ()
+  ;; TODO(sdsmith): There is a lot of room for optimization. For instance, there is no need to `always` check
+  ;; for the beginning of the scope.
   "Indent current line as 488 Lang code"
   (interactive) ; Allows use in 'M-x' (for debugging)
 
@@ -143,44 +173,33 @@
              ((looking-at "^[ \t]*}")
               ;; Find the top of the scope, and indent it at that level
               (progn
-                (save-excursion
-                  (let ((not-top-scope-found t) (open-brackets 0))
-                    (while not-top-scope-found
-                      (forward-line -1)
-                      (cond
-                       ((looking-at "^[ \t]*}") ; Newly opened scope
-                        (setq open-brackets (+ open-brackets 1)))
-                       
-                       ((looking-at "^[ \t]*{")
-                        (if (> open-brackets 0)
-                            (setq open-brackets (- open-brackets 1))
-                          (progn ; no open brackets, use scope
-                            (setq cur-indent (current-indentation))
-                            (setq not-top-scope-found nil))))))))
+                (setq cur-indent (get-containing-scope-indentation))                            
                 (if (< cur-indent 0) ; Sanity check - make sure indent >= 0
                     (setq cur-indent 0))))
 
-
-             ;; TODO(sdsmith): need to add in support for the globals so the flags tigger correctly
-             ;; Check that control statements are indented correctly. They have many possible valid locations.       
+             ;; Handle in sequence control statement keywords
+             ((looking-at "^[ \t]*\\(DO\\|UNTIL\\|THEN\\)")
+              (save-excursion
+                ;; Find a text line
+                (let ((not-text-line t))
+                  (while not-text-line
+                    (forward-line -1)
+                    (cond                    
+                     ((looking-at "^[ \t]*[^ \t\n]")
+                      (progn
+                        (setq cur-indent (current-indentation))
+                        (setq not-text-line nil)))
+                     ((bobp)
+                      (progn
+                        (setq cur-ident 0)
+                        (setq not-text-line nil))))))))
+                                           
+             ;; Check for possible multiple options of indentation levels
              ((looking-at "^[ \t]*\\(IF\\|WHILE\\|REPEAT\\)")
               ;; NOTE(sdsmith): max - prev indentation; min - indent level of inner most scope (ie. '{...}')       
               (progn
-                ;; Find min indentation level (first sign of open scope '{' once all '}' have bee closed
-                (save-excursion
-                  (let ((open-brackets 0) (not-min-found t))
-                    (while not-min-found
-                      (forward-line -1)
-                      (cond
-                       ((looking-at "^[ \t]*}") ; Newly opened scope
-                        (setq open-brackets (+ open-brackets 1)))
-                       
-                       ((looking-at "^[ \t]*{")
-                        (if (> open-brackets 0)
-                            (setq open-brackets (- open-brackets 1))
-                          (progn                           
-                            (setq 488-lang--min-line-indent (+ (current-indentation) default-tab-width))
-                            (setq not-min-found nil)))))))) ; no open brackets, use scope
+                ;; Find min indentation level (one more than containing scope)
+                (setq 488-lang--min-line-indent (+ (get-containing-scope-indentation) default-tab-width))
                 
                 ;; Find max indentation level (previous indentation level)
                 (save-excursion
