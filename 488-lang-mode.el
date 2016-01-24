@@ -70,7 +70,7 @@
 
 
 
-;;; AUTOLOAD
+;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.488\\'" . 488-lang-mode))
       
 
@@ -312,4 +312,3 @@
 ;;; EXPOSE MODULE
 ;; Add mode to 'features' list (ie. exposing it to the emacs environment)
 (provide '488-lang-mode)
-
