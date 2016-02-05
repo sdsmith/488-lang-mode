@@ -214,7 +214,27 @@
                  ;; Indent 'else'
                  ((looking-at "^[ \t]*ELSE")
                   ;; TODO(sdsmith): only do this if we find an if
-                  (setq cur-indent (- (get-last-indentation) default-tab-width)))
+                  ;; If last item is a closing bracket, indent to that level
+                  (let ((not-found-text t) (is-indented nil))
+                    (progn
+                      (save-excursion
+                        (while not-found-text
+                          (forward-line -1)
+                          (cond
+                           
+                           ;; Found a scope, align the else with it
+                           ((looking-at "^[ \t]*}")
+                            (setq cur-indent (current-indentation))
+                            (setq is-indented t)
+                            (setq not-found-text nil))
+                           
+                           ;; Found something that isn't end of scope, stop
+                           ((looking-at "^[ \t]*[^ \t]+")
+                            (setq not-found-text nil)))))
+
+                      ;; If it hasn't been indented already, indent
+                      (if (not is-indented)
+                          (setq cur-indent (- (get-last-indentation) default-tab-width))))))
                  
                  ;; Handle two line control statement keywords
                  ((looking-at "^[ \t]*\\(DO\\|UNTIL\\|THEN\\)")
